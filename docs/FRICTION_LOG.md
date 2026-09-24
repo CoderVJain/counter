@@ -1,3 +1,4 @@
+
 # Friction log
 
 Developer-experience friction hit while building Counter on Amazon and AWS tooling.
