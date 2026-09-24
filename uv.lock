@@ -216,6 +216,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "sqlalchemy" },
     { name = "strands-agents" },
+    { name = "truststore" },
     { name = "uvicorn" },
 ]
 
@@ -239,6 +240,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.2.3" },
     { name = "sqlalchemy", specifier = ">=2" },
     { name = "strands-agents", specifier = ">=1.57.0" },
+    { name = "truststore", specifier = ">=0.10.4" },
     { name = "uvicorn", specifier = ">=0.53.0" },
 ]
 
