@@ -44,3 +44,20 @@ One entry per problem: what was attempted, what happened, severity, workaround, 
   macOS, or ship a documented `use_system_certs` option. Failing that, detect `CERTIFICATE_VERIFY_FAILED` and
   extend the error message with a pointer to `AWS_CA_BUNDLE` and the likelihood of TLS-inspecting software.
   Fixing the `truststore` recursion would also let builders use the standard ecosystem tool.
+
+## 3. New-account verification surfaces as AccessDeniedException on Bedrock
+
+- **Date:** 2026-09-24
+- **Task:** First `bedrock-runtime.converse()` call with Nova Micro on a new account.
+- **Steps:** Created an IAM user with `AmazonBedrockFullAccess`, configured credentials, called STS then Converse.
+- **Expected:** Either a model response, or an error naming the actual cause.
+- **Actual:** STS `get_caller_identity` succeeded, so credentials and IAM were demonstrably fine. Converse then
+  raised `AccessDeniedException: Your account is currently being verified. Verification normally takes less
+  than 2 hours.`
+- **Severity:** Low once understood, medium in the moment. `AccessDeniedException` is the same error class used
+  for genuine IAM denials, so the obvious response is to go and edit policies that were never wrong. The
+  message body carries the real reason, but any tooling that surfaces only the error type will mislead.
+- **Workaround:** Wait, then retry. Build the credential-free layers meanwhile.
+- **Suggestion:** Use a distinct error code for pending account verification, or state the expected wait and
+  the verification status in the Bedrock console so a builder can tell "not yet" from "not allowed". Mentioning
+  the hold in the Bedrock getting-started page would prevent the misdiagnosis entirely.
