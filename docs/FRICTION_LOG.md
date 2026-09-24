@@ -62,3 +62,30 @@ One entry per problem: what was attempted, what happened, severity, workaround, 
 - **Suggestion:** Use a distinct error code for pending account verification, or state the expected wait and
   the verification status in the Bedrock console so a builder can tell "not yet" from "not allowed". Mentioning
   the hold in the Bedrock getting-started page would prevent the misdiagnosis entirely.
+
+## 4. New accounts cannot invoke any Bedrock model: "ValidationException: Operation not allowed"
+
+- **Date:** 2026-09-24
+- **Task:** Make the first Nova Micro call after account verification completed.
+- **Steps:** Verified identity with STS (succeeds). Called `Converse` and `InvokeModel`, with both the
+  foundation model id `amazon.nova-micro-v1:0` and the inference profile `us.amazon.nova-micro-v1:0`.
+  `ListFoundationModels` reports both Nova models as `ON_DEMAND`-capable, and `ListInferenceProfiles` reports
+  `us.amazon.nova-micro-v1:0` and `us.amazon.nova-lite-v1:0` as ACTIVE.
+- **Expected:** A model response, since the console lists the models as available and IAM grants
+  `AmazonBedrockFullAccess`.
+- **Actual:** Every combination fails with `ValidationException: Operation not allowed`. Read operations
+  (`ListFoundationModels`, `ListInferenceProfiles`) succeed against the same credentials, so the account can
+  see the models it cannot invoke.
+- **Severity:** High, and blocking. It stops all model work on a new account, and the error is actively
+  misleading three times over: `ValidationException` implies a malformed request, "Operation not allowed"
+  implies a permissions or policy problem, and the model access page (now retired) says serverless models are
+  enabled automatically on first invoke. None of those point at the real cause, which is an account-standing
+  gate tied to billing history. Community threads show the same confusion at length, with the remedy being a
+  support case rather than anything the builder can fix.
+- **Workaround:** Open a free "Account and billing" support case. Meanwhile develop against the fallback LLM
+  provider behind `counter/agent/llm.py`, so the parser work is not blocked.
+- **Suggestion:** Return a distinct error code such as `AccountNotEligibleException` with the actual reason and
+  the remediation path, rather than `ValidationException`. Better still, surface invocation eligibility in the
+  Bedrock console next to the model list, so a builder can see "visible but not yet invocable" without writing
+  code to discover it. This is the first thing a new builder does with Bedrock, and it currently fails with an
+  error that sends them to rewrite their IAM policy.

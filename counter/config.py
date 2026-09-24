@@ -12,8 +12,8 @@ class Settings(BaseSettings):
 
     database_url: str = ""
     aws_region: str = "us-east-1"
-    bedrock_model_fast: str = "amazon.nova-micro-v1:0"
-    bedrock_model_smart: str = "amazon.nova-lite-v1:0"
+    bedrock_model_fast: str = "us.amazon.nova-micro-v1:0"
+    bedrock_model_smart: str = "us.amazon.nova-lite-v1:0"
     llm_provider: str = "bedrock"
     groq_api_key: str = ""
     agentcore_memory_id: str = ""
