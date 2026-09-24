@@ -2,7 +2,7 @@
 
 ## Context
 
-`C:\Users\jain2\Desktop\counter` currently contains only `CLAUDE.md`. Counter is a voice back-office for small
+Counter is a voice back-office for small
 shopkeepers, entered in the **Build, Ship, Shape: Amazon Developer Hackathon** (Alexa+ track, plus the AWS Builder
 and Open Source mini-challenges). Submission closes **Oct 23, 2026 12:00 PM PDT**; internal target **Oct 20**.
 This plan turns `CLAUDE.md` into ordered, buildable phases, and corrects three assumptions in it that the
@@ -28,6 +28,49 @@ research contradicts.
 - **Firm:** Strands Agents SDK, Neon Postgres, own simulator, supplier sim.
 - **Stretch:** AgentCore Memory, Telegram reminders. AWS Builder evidence rests on Bedrock (Nova) + Strands.
 - **Build order:** layer by layer — domain → agent → MCP → UI → demo.
+
+---
+
+## Where we are (updated Sep 24, 2026)
+
+**Phase 0 complete** except the AWS credits form. **Phase 1 complete**, ahead of its Oct 3 target.
+48 tests passing, `ruff` clean. Next session starts Phase 2 (the parser).
+
+| Phase | State | Notes |
+|---|---|---|
+| 0 Foundations | done | credits form still to submit (closes Oct 21) |
+| 1 Domain layer | done | schema, stock, ledger, idempotency, units, orders, seed |
+| 2 Agent layer | next | blocked on a model provider, see below |
+| 3 MCP server | not started | |
+| 4 UI, simulator, jobs | not started | |
+| 5 Evals, docs, submission | not started | |
+
+### Open blocker: Bedrock invocation is gated
+
+AWS allows this account to list Nova models but not to invoke them. `Converse` and `InvokeModel` both return
+`ValidationException: Operation not allowed`, in `us-east-1` and `us-west-2`, for both the foundation model ids
+and the `us.` inference profiles, while `ListFoundationModels`, `ListInferenceProfiles` and STS all succeed on
+the same credentials. One call did succeed once in `us-west-2` and six identical calls immediately after it
+failed, so the entitlement exists but is enforced inconsistently. This is a new-account hold tied to billing
+history, not a configuration fault. A free Account-and-billing support case is the remedy. Full detail in
+`docs/FRICTION_LOG.md` entry 4.
+
+**Consequence:** none for the Alexa+ track, which requires no AWS service. It weakens the AWS Builder
+mini-challenge only. Phase 2 proceeds behind the `agent/llm.py` provider interface with a fallback provider,
+so Bedrock drops in later as one env var with no parser rewrite.
+
+### Next session, in order
+
+1. `agent/llm.py` - provider interface, fake provider for tests, Bedrock and fallback implementations.
+2. `agent/parser.py` - utterance plus catalog to a validated Pydantic intent, clarify rather than guess.
+3. Re-check Bedrock with `uv run --native-tls python -m scripts.check_bedrock`.
+
+### Environment notes
+
+- uv and any script making outbound TLS calls need `--native-tls` or `UV_NATIVE_TLS=1` on this machine.
+  Avast re-signs HTTPS with a private CA; `counter/tls.py` handles it for AWS calls.
+- AWS credentials live in `~/.aws/credentials` via `aws configure`, never in `.env`.
+- Local dev runs on SQLite (`counter.db`). Neon is not connected yet; `DATABASE_URL` switches it.
 
 ---
 

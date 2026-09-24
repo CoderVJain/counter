@@ -10,17 +10,21 @@ stock, customer credit, supplier orders and the daily summary all run by voice.
 
 ## Status
 
-Phase 0 (foundations). See [plan.md](plan.md).
+Phases 0 and 1 are complete: the whole domain layer is built and tested (48 tests). The agent
+layer is next. See [plan.md](plan.md) for the phase plan and the current blocker.
 
 ## Setup
 
 Requires Python 3.12 and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-uv sync                 # install dependencies
-cp .env.example .env    # then fill in DATABASE_URL and AWS settings
+uv sync                                  # install dependencies
+uv run python -m counter.seed --reset    # build the demo shop in local SQLite
 uv run pytest
 ```
+
+`.env` is optional for now: local development runs on SQLite and AWS credentials come from `aws configure`.
+Set `DATABASE_URL` to switch to Neon Postgres.
 
 If your machine sits behind a TLS-inspecting proxy or antivirus, add `--native-tls` to uv commands or set
 `UV_NATIVE_TLS=1`.
