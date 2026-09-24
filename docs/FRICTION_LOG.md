@@ -82,6 +82,11 @@ One entry per problem: what was attempted, what happened, severity, workaround, 
   enabled automatically on first invoke. None of those point at the real cause, which is an account-standing
   gate tied to billing history. Community threads show the same confusion at length, with the remedy being a
   support case rather than anything the builder can fix.
+- **Also observed:** the block is not quite absolute. One `Converse` call to `us.amazon.nova-micro-v1:0` in
+  `us-west-2` succeeded, and six identical calls immediately afterwards failed with the same
+  `ValidationException`. The entitlement therefore exists but is enforced inconsistently, which makes the
+  failure look like a transient bug rather than a deliberate account gate and sends builders hunting for a
+  fault in their own code.
 - **Workaround:** Open a free "Account and billing" support case. Meanwhile develop against the fallback LLM
   provider behind `counter/agent/llm.py`, so the parser work is not blocked.
 - **Suggestion:** Return a distinct error code such as `AccountNotEligibleException` with the actual reason and
