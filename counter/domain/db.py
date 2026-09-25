@@ -13,7 +13,7 @@ DEFAULT_URL = "sqlite:///counter.db"
 
 def engine_url() -> str:
     """Neon when configured, otherwise a local SQLite file."""
-    return settings().database_url or DEFAULT_URL
+    return settings().database_url.get_secret_value() or DEFAULT_URL
 
 
 _engine = create_engine(engine_url(), future=True)

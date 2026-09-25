@@ -1,0 +1,34 @@
+{"say": "do kilo cheeni", "items": [["sugar", 2000]], "customer": null, "credit": false}
+{"say": "ek packet bread", "items": [["bread", 1]], "customer": null, "credit": false}
+{"say": "dhai kilo chawal", "items": [["rice", 2500]], "customer": null, "credit": false}
+{"say": "aadha kilo haldi", "items": [["turmeric powder", 500]], "customer": null, "credit": false}
+{"say": "pav kilo jeera", "items": [["cumin seeds", 250]], "customer": null, "credit": false}
+{"say": "ek dozen ande", "items": [["eggs", 12]], "customer": null, "credit": false}
+{"say": "teen packet biscuit", "items": [["glucose biscuits", 3]], "customer": null, "credit": false}
+{"say": "do litre doodh", "items": [["toned milk", 2000]], "customer": null, "credit": false}
+{"say": "ek kilo namak", "items": [["salt", 1000]], "customer": null, "credit": false}
+{"say": "char kilo atta", "items": [["wheat flour", 4000]], "customer": null, "credit": false}
+{"say": "do doodh aur ek bread, cash", "items": [["toned milk", 2000], ["bread", 1]], "customer": null, "credit": false}
+{"say": "ek kilo chawal aur aadha kilo dal", "items": [["rice", 1000], ["toor dal", 500]], "customer": null, "credit": false}
+{"say": "paanch packet noodles aur do sabun", "items": [["instant noodles", 5], ["soap bar", 2]], "customer": null, "credit": false}
+{"say": "Sharma ji ko do kilo cheeni udhaar", "items": [["sugar", 2000]], "customer": "Sharma ji", "credit": true}
+{"say": "char kilo chawal Rakesh ko udhaar", "items": [["rice", 4000]], "customer": "Rakesh", "credit": true}
+{"say": "Gupta ji ko ek kilo ghee, khaate mein likh do", "items": [["ghee", 1000]], "customer": "Gupta ji", "credit": true}
+{"say": "Anita didi ko teen packet biscuit, kal dega", "items": [["glucose biscuits", 3]], "customer": "Anita didi", "credit": true}
+{"say": "Imran bhai ko aadha kilo jeera udhaar", "items": [["cumin seeds", 500]], "customer": "Imran bhai", "credit": true}
+{"say": "Sunita ji ko do kilo cheeni, somvar ko paisa degi", "items": [["sugar", 2000]], "customer": "Sunita ji", "credit": true}
+{"say": "Sold 2 kg sugar and 3 packets bread to Sharma ji, he will pay Friday", "items": [["sugar", 2000], ["bread", 3]], "customer": "Sharma ji", "credit": true}
+{"say": "Kamla aunty ko ek litre tel, agle hafte", "items": [["mustard oil", 1000]], "customer": "Kamla aunty", "credit": true}
+{"say": "umm... teen packet biscuit de do Anita didi ko, kal dega", "items": [["glucose biscuits", 3]], "customer": "Anita didi", "credit": true}
+{"say": "haan wo... do kilo cheeni de dena", "items": [["sugar", 2000]], "customer": null, "credit": false}
+{"say": "ek kilo... nahi do kilo chawal", "items": [["rice", 2000]], "customer": null, "credit": false}
+{"say": "Verma bhai ko das anda", "items": [["eggs", 10]], "customer": "Verma bhai", "credit": false}
+{"say": "bees packet machis", "items": [["matchbox", 20]], "customer": null, "credit": false}
+{"say": "ek chai patti aur ek coffee", "items": [["tea leaves", 1000], ["coffee powder", 1000]], "customer": null, "credit": false}
+{"say": "sarson ka tel ek litre", "items": [["mustard oil", 1000]], "customer": null, "credit": false}
+{"say": "do kilo besan Deepak ko udhaar", "items": [["gram flour", 2000]], "customer": "Deepak", "credit": true}
+{"say": "ek packet agarbatti aur do mombatti", "items": [["incense sticks", 1], ["candle", 2]], "customer": null, "credit": false}
+{"say": "ek litre oil", "clarify": true}
+{"say": "do kilo chocolate", "clarify": true}
+{"say": "ek litre bread", "clarify": true}
+{"say": "kuch cheeni de do", "clarify": true}
