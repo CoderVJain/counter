@@ -39,7 +39,9 @@ ITEMS = [
     ("salt", ["namak"], "kg", "g", 1000, 2500, 3_000),
     ("mustard oil", ["sarson ka tel", "tel"], "litre", "ml", 1000, 18000, 4_000),
     ("refined oil", ["refined", "cooking oil"], "litre", "ml", 1000, 15500, 4_000),
-    ("ghee", ["desi ghee"], "litre", "ml", 1000, 62000, 2_000),
+    # Sold by weight, not volume: a shop says "ek kilo ghee" and the tin is labelled in grams.
+    # evals/utterances.jsonl expects grams for it, so seeding it as a liquid made that case fail.
+    ("ghee", ["desi ghee"], "kg", "g", 1000, 62000, 2_000),
     ("toned milk", ["doodh", "milk"], "litre", "ml", 1000, 6000, 10_000),
     ("curd", ["dahi"], "kg", "g", 1000, 8000, 2_000),
     ("paneer", ["cottage cheese"], "kg", "g", 1000, 40000, 1_000),

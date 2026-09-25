@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from counter.domain import inventory
+from counter.domain import audit, inventory
 from counter.domain.models import Item, Supplier, SupplierOrder, SupplierOrderLine
 
 DRAFT = "draft"
@@ -89,6 +89,7 @@ def confirm(db: Session, order_id: int) -> SupplierOrder:
 
     order.status = CONFIRMED
     db.flush()
+    audit.record(db, audit.ORDER_CONFIRMED, {"order_id": order.id, "supplier_id": order.supplier_id})
     return order
 
 
@@ -102,6 +103,7 @@ def mark_sent(db: Session, order_id: int) -> SupplierOrder:
 
     order.status = SENT
     db.flush()
+    audit.record(db, audit.ORDER_SENT, {"order_id": order.id, "supplier_id": order.supplier_id})
     return order
 
 

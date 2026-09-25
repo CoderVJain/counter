@@ -94,3 +94,50 @@ One entry per problem: what was attempted, what happened, severity, workaround, 
   Bedrock console next to the model list, so a builder can see "visible but not yet invocable" without writing
   code to discover it. This is the first thing a new builder does with Bedrock, and it currently fails with an
   error that sends them to rewrite their IAM policy.
+
+## 5. Bedrock access arrives by email with no in-console signal
+
+- **Task:** Know when the new-account invocation hold from entry 4 has lifted.
+- **Steps:** Opened an Account and billing support case, then re-ran `scripts/check_bedrock.py` periodically
+  while building against the fallback provider.
+- **Expected:** The Bedrock console shows the account's invocation eligibility, so a builder can see the state
+  change without writing code or waiting for mail.
+- **Actual:** The only notification is an email saying access will follow in four to five days. The console
+  model list looks identical before and after, and `ListFoundationModels` succeeded throughout, so the only
+  way to detect the change is to attempt a `Converse` call and see whether it still raises.
+- **Severity:** Low, but it compounds entry 4. A builder who did not write a probe script has no way to know.
+- **Workaround:** Keep `scripts/check_bedrock.py` as a one-command probe and re-run it. Because every model
+  call goes through one provider abstraction, switching over afterwards is a single environment variable.
+- **Suggestion:** Show invocation eligibility and any pending verification in the Bedrock console beside the
+  model list, and make the approval email link to that page. An email that says "you now have access" without
+  a place to confirm it leaves the builder polling an API to learn their own account state.
+
+## 6. Nova returns a confident wrong quantity when a sentence has extra words
+
+- **Task:** Have Nova copy the spoken quantity out of a shopkeeper's sentence into a structured field, so
+  deterministic code can convert it. The model is asked only to transcribe: it never does arithmetic, never
+  picks a catalog row and never sees a price.
+- **Steps:** `structured_output` through the Strands Agents SDK against `us.amazon.nova-micro-v1:0`,
+  temperature 0, one short sentence per call, with a system prompt that says in three ways to copy the
+  quantity exactly as spoken and never convert it. Repeated against `us.amazon.nova-lite-v1:0`.
+- **Expected:** `qty` holds the word that was actually said, or is left empty. Copying a word out of a sentence
+  is the easiest thing asked of the model anywhere in this project.
+- **Actual:** On 25 Sep, with the same prompt and temperature 0:
+  - `"do kilo cheeni"` gave qty `"do"` - correct.
+  - `"do kilo cheeni cash"` gave qty `"cash"` on one prompt revision and `"bees"` (twenty) on another.
+  - `"do kilo cheeni Sharma ji ko, kal dega"` gave qty `"ek"` (one) instead of `"do"` (two).
+  - Nova Lite on `"do kilo cheeni cash"` gave qty `"kilo"`.
+  Adding words to the sentence degrades a field the model is told to copy verbatim, and the failure is not a
+  refusal or an empty field: it is a different real quantity word that resolves cleanly downstream. Small
+  prompt edits moved the error around rather than removing it, and Lite was no better than Micro.
+- **Severity:** High for this class of application. A wrong quantity is silent: 1 kg instead of 2 kg passes
+  every validation, writes a plausible ledger row, and the shopkeeper finds out when the stock does not match.
+  Anyone building voice data entry on Nova and trusting a copied field will ship this bug.
+- **Workaround:** Do not trust the field. `counter/agent/parser.check_quantities` tokenises the utterance and
+  rejects any quantity that does not appear in it, turning a silent wrong write into one clarifying question.
+  The utterance is already in hand, so the check is free; it also guards against future model drift.
+- **Suggestion:** Two things would have saved a day here. First, document this failure mode for Nova
+  structured output: verbatim extraction degrades as unrelated tokens are added, and the model substitutes a
+  plausible in-domain value rather than abstaining. Second, expose a per-field confidence or an "extracted
+  span" for structured output, so a caller can check that a value came from the input instead of reimplementing
+  that check themselves. A model that is asked to transcribe should be able to say where it read something.

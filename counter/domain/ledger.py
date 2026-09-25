@@ -11,6 +11,7 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from counter.domain import audit
 from counter.domain.models import CreditEntry, Customer
 
 
@@ -80,6 +81,11 @@ def record_payment(db: Session, customer: Customer, amount_paise: int) -> Credit
     entry = CreditEntry(customer_id=customer.id, amount_paise=-amount_paise)
     db.add(entry)
     db.flush()
+    audit.record(
+        db,
+        audit.PAYMENT,
+        {"customer_id": customer.id, "paid_paise": amount_paise, "balance_paise": owed - amount_paise},
+    )
     return entry
 
 
