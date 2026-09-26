@@ -31,36 +31,53 @@ research contradicts.
 
 ---
 
-## Where we are (updated Sep 25, 2026)
+## Where we are (updated Sep 26, 2026)
 
-**Phase 0 complete**; the AWS credits form is submitted and awaiting a reply. **Phase 1 complete**, ahead of
-its Oct 3 target. **Phase 2 complete.** `agent/` holds `llm.py`, `parser.py`, `summarizer.py`, `forecaster.py` and
-`prompts.py`; `domain/` gained `catalog.py` and `dates.py`. 121 tests passing, `ruff` clean, and
-`evals/` runs 34 utterances against the live model.
-Next up is `agent/parser.py`.
+**Phases 0 to 3 complete**, ahead of the Oct 10 target for Phase 3. `counter/server.py` mounts the MCP
+Streamable HTTP app in FastAPI and serves the eight tools; `supplier_sim/` answers confirmed orders;
+`domain/audit.py` writes the trail every write now leaves. 221 tests passing, `ruff` clean, and the eval
+run reports **0 wrong writes** on 34 utterances against Nova Micro. The repo is public with MIT.
+Next up is Phase 4: UI cards, `sim_client/`, and the scheduled briefing.
 
 | Phase | State | Notes |
 |---|---|---|
-| 0 Foundations | done | credits form submitted, no confirmation email yet as of Sep 25 |
+| 0 Foundations | done | $150 hackathon credits cannot be applied to a free-tier account, see Cost below |
 | 1 Domain layer | done | schema, stock, ledger, idempotency, units, orders, seed |
-| 2 Agent layer | done | all modules built; eval set run end to end on Groq with 0 wrong writes |
-| 3 MCP server | not started | |
+| 2 Agent layer | done | all modules built; eval set run end to end with 0 wrong writes |
+| 3 MCP server | done | 8 tools over Streamable HTTP 2025-11-25, supplier sim, audit log |
 | 4 UI, simulator, jobs | not started | |
 | 5 Evals, docs, submission | not started | |
 
-### Open blocker: Bedrock invocation is gated
+### Bedrock is working (Sep 26, 2026)
 
-AWS allows this account to list Nova models but not to invoke them. `Converse` and `InvokeModel` both return
-`ValidationException: Operation not allowed`, in `us-east-1` and `us-west-2`, for both the foundation model ids
-and the `us.` inference profiles, while `ListFoundationModels`, `ListInferenceProfiles` and STS all succeed on
-the same credentials. One call did succeed once in `us-west-2` and six identical calls immediately after it
-failed, so the entitlement exists but is enforced inconsistently. This is a new-account hold tied to billing
-history, not a configuration fault. A free Account-and-billing support case is the remedy. Full detail in
-`docs/FRICTION_LOG.md` entry 4.
+The new-account invocation hold has lifted. `uv run --native-tls python -m scripts.check_bedrock` and
+`python -m scripts.check_llm` both pass on `LLM_PROVIDER=bedrock` in `us-east-1`: `Converse` answers on
+`us.amazon.nova-micro-v1:0` and `us.amazon.nova-lite-v1:0`, and `llm.parse("do kilo cheeni")` returns
+`qty=2`. Nova is therefore genuinely the runtime model, which is what the AWS Builder mini-challenge
+rests on. The old `ValidationException: Operation not allowed` history stays written up in
+`docs/FRICTION_LOG.md` entries 4 and 5; do not re-investigate it. The Groq path stays behind the
+`agent/llm.py` seam as a fallback, not as the plan.
 
-**Consequence:** none for the Alexa+ track, which requires no AWS service. It weakens the AWS Builder
-mini-challenge only. Phase 2 proceeds behind the `agent/llm.py` provider interface with a fallback provider,
-so Bedrock drops in later as one env var with no parser rewrite.
+Rapid-fire runs still hit throttling, which looks like a failed call and is not one. `evals/run.py`
+paces itself for that reason.
+
+### Cost: the credit budget is the real constraint
+
+- The **$150 hackathon credit** cannot be redeemed on this account: the form's codes do not apply to an
+  AWS free-tier account. Treat that money as unavailable.
+- What we have is the **free-tier credit pool of $100, of which about $20 is left** for the rest of the
+  build. The demo recording and the submission still have to come out of it, so model spend from here is
+  a budget with a floor, not a rounding error.
+- **Rules that follow, and they are not optional:**
+  1. Nova Micro only. Nothing in `counter/` passes `smart=True` today, and nothing should start without
+     an eval showing Micro fails the case.
+  2. The parse cache in `agent/parser.py` stays on. A repeated utterance against an unchanged catalog
+     must not be a second call.
+  3. Run the full eval (34 live calls) only when the parser or a prompt changed. For everything else the
+     221 tests use `FakeModel` and cost nothing.
+  4. Never point a loop, a retry or a scheduled job at the model without a hard call ceiling. The morning
+     briefing in Phase 4 is the first job that could bill while nobody is watching.
+  5. Check actual spend in the Billing console before the demo week, and keep the $10 budget alert.
 
 ## Security check: run this at the end of every step
 
@@ -121,17 +138,19 @@ walk these seven and note the answer in the commit message. Most steps touch onl
    Friday. If that is wrong the debt is chased a week late, so put both readings in the eval set.
 4. ~~`agent/summarizer.py`, `agent/forecaster.py`, `agent/prompts.py`~~ done, plus the parse cache
    and `evals/` (34 utterances, `LLM_PROVIDER=groq uv run --native-tls python -m evals.run`).
-5. **Next: Phase 3, the MCP server.** `server.py` mounting Streamable HTTP, then the eight tools.
-   `record_sale` is mostly wiring now: `parser.parse_sale` returns a `ParsedSale` whose lines feed
-   `inventory.move` and whose credit feeds `ledger.add_credit(due_date=...)`, all behind
-   `idempotency.once`.
-6. Re-check Bedrock with `uv run --native-tls python -m scripts.check_bedrock`.
+5. ~~Phase 3, the MCP server~~ done. `create_app()` mounts the Streamable HTTP app and serves the eight
+   tools; `supplier_sim/` takes confirmed orders; `domain/audit.py` records every write. Verified with
+   the MCP Inspector CLI against a real socket: 8 tools listed, a credit sale recorded once and ignored
+   on repeat, stock moved 20 -> 17.5 kg. Two traps are documented in `counter/server.py`, the sharpest
+   being that `json_response=True` plus `BaseHTTPMiddleware` framed replies as chunked and then wrote
+   the body unframed, so every reply arrived empty.
+6. ~~Re-check Bedrock~~ done, Sep 26. It works; see above.
+7. **Next: Phase 4** — `ui/` cards, `sim_client/`, `jobs/` morning briefing. Ask Varun before starting.
 
 ### Known, recorded rather than fixed
 
-- **Ghee is seeded in litres**, so "ek kilo ghee" raises `UnitMismatch` and the assistant asks. That
-  is the right refusal for the data we have, but ghee is genuinely sold both ways; decide whether the
-  seed should carry a weight-based unit before the video.
+- ~~**Ghee is seeded in litres**~~ settled Sep 26: `seed.py` now sells ghee by weight (kg, base g),
+  which is what `evals/utterances.jsonl` expects, so "ek kilo ghee" resolves instead of asking.
 - **Groq's free tier is 8000 tokens per minute**, which the eval run exceeds if unpaced. `evals/run.py`
   sleeps between cases for that reason. Not a parser property; do not read a throttle as a failure.
   Worth remembering *why* the pacing matters: the first, unpaced run reported **0 wrong writes and was
