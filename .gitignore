@@ -8,3 +8,6 @@ __pycache__/
 *.sqlite3
 .DS_Store
 .cache/
+
+phase3.md
+phase4.md

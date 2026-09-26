@@ -41,7 +41,7 @@ Next up is Phase 4: UI cards, `sim_client/`, and the scheduled briefing.
 
 | Phase | State | Notes |
 |---|---|---|
-| 0 Foundations | done | $150 hackathon credits cannot be applied to a free-tier account, see Cost below |
+| 0 Foundations | done | credit in hand: $20 Bedrock, $100 free-tier, $150 hackathon. See Cost |
 | 1 Domain layer | done | schema, stock, ledger, idempotency, units, orders, seed |
 | 2 Agent layer | done | all modules built; eval set run end to end with 0 wrong writes |
 | 3 MCP server | done | 8 tools over Streamable HTTP 2025-11-25, supplier sim, audit log |
@@ -63,11 +63,13 @@ paces itself for that reason.
 
 ### Cost: the credit budget is the real constraint
 
-- The **$150 hackathon credit** cannot be redeemed on this account: the form's codes do not apply to an
-  AWS free-tier account. Treat that money as unavailable.
-- What we have is the **free-tier credit pool of $100, of which about $20 is left** for the rest of the
-  build. The demo recording and the submission still have to come out of it, so model spend from here is
-  a budget with a floor, not a rounding error.
+- Three pools, as of Sep 26, 2026: **$20 Bedrock**, **$100 AWS free-tier**, and the **$150 hackathon
+  credit**, which came through after an earlier reading that it could not be applied to a free-tier
+  account. Corrected here so the old note is not trusted.
+- **The extra credit does not relax a single rule below.** Model calls bill against Bedrock, so that is
+  the pool every parse draws down, and the demo recording and the submission still come out of it. The
+  decision stands: we spend as if the budget were tight, because an unbounded call path is a defect
+  whatever the balance says.
 - **Rules that follow, and they are not optional:**
   1. Nova Micro only. Nothing in `counter/` passes `smart=True` today, and nothing should start without
      an eval showing Micro fails the case.
@@ -208,7 +210,7 @@ Goal: repo runs, AWS answers, `CLAUDE.md` is truthful.
 - `git init`, MIT `LICENSE`, `.gitignore`, `.env.example`, public GitHub repo with **license visible in About**.
 - `uv init` on Python 3.12; add `mcp`, `fastapi`, `uvicorn`, `sqlalchemy`, `alembic`, `pydantic`,
   `strands-agents`, `boto3`, `httpx`, `pytest`, `ruff`. Pin versions; record resolved `mcp` version.
-- AWS: account check, **budget alert ≤ $10**, request the **$150 credits** (form closes Oct 21), enable Nova
+- AWS: account check, **budget alert ≤ $10**, ~~request the $150 credits~~ done and received, enable Nova
   Micro/Lite in `us-east-1`, and run one raw `boto3` `converse` call to prove access. Zero quota → flip
   `LLM_PROVIDER=groq`.
 - Neon project + `DATABASE_URL`.

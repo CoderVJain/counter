@@ -197,10 +197,11 @@ TELEGRAM_BOT_TOKEN=      # optional, reminders
 
 ## Cost rules (the goal is ₹0)
 
-**The credit budget is hard, and the demo has to come out of it.** The $150 hackathon credit cannot be
-redeemed on this AWS free-tier account, so it does not exist for us. What we have is the free-tier pool
-of $100, with roughly **$20 left** as of Sep 26, 2026, and the demo recording plus the submission still
-have to be paid for from it. Every model call is spending that.
+**The credit budget is hard, and the demo has to come out of it.** Three pools, as of Sep 26, 2026:
+**$20 Bedrock**, **$100 AWS free-tier**, and the **$150 hackathon credit**, which came through after
+all. More credit does not mean a looser rule. Model calls bill against Bedrock, the demo recording and
+the submission still have to be paid for, and the rules below stay in force as written. Treat every
+model call as spending money that is not ours to waste.
 
 - AWS budget alert must exist (≤ $10). Check spend in the Billing console before demo week.
 - **Nova Micro only.** Nothing in `counter/` passes `smart=True`; do not add a Nova Lite call without an
@@ -209,7 +210,7 @@ have to be paid for from it. Every model call is spending that.
 - Run the full 34-call eval only when a prompt or the parser changed. Otherwise the test suite uses
   `FakeModel` and costs nothing.
 - Never point a loop, a retry or a scheduled job at the model without a hard call ceiling. A job that
-  bills while nobody is watching is the one way to lose the remaining credit overnight.
+  bills while nobody is watching is the one way to drain a pool overnight.
 - No WhatsApp/SMS APIs (they charge per message). Telegram or on-screen cards only.
 - Seed data is small (1 shop, ~40 items, ~10 customers, 2 suppliers).
 
