@@ -23,6 +23,7 @@ from counter.domain import dates, ledger, orders, reports, units
 from counter.domain.db import session
 from counter.tools import reply
 from counter.tools.credit import DueLine, due_line
+from counter.ui import cards
 
 
 class LowStockLine(BaseModel):
@@ -65,7 +66,36 @@ class DayReport(BaseModel):
     outstanding_paise: int
 
 
-def _briefing_facts(briefing: Briefing) -> str:
+def build_briefing(db) -> Briefing:
+    """Assemble the briefing from the database. Pure code: no model, so it cannot be throttled.
+
+    Shared with `jobs.briefing`, which needs the same figures on a schedule. Keeping one assembly
+    means the scheduled briefing and the spoken one can never disagree.
+    """
+    today = dates.today()
+    ranked = forecaster.by_urgency(orders.suggest_reorder(db))
+    low = [
+        LowStockLine(
+            item=s.item.name,
+            in_stock=units.from_base(s.item, s.on_hand_base),
+            days_left=s.days_of_stock,
+            suggest_buying=units.from_base(s.item, s.qty_base),
+        )
+        for s in ranked
+    ]
+    dues = [due_line(db, due, today) for due in ledger.due_by(db, today)]
+    due_total = sum(line.amount_paise for line in dues)
+    outstanding = ledger.outstanding_total(db)
+    return Briefing(
+        low_stock=low,
+        due_today=dues,
+        due_today_total=units.rupees(due_total),
+        outstanding=units.rupees(outstanding),
+        outstanding_paise=outstanding,
+    )
+
+
+def briefing_facts(briefing: Briefing) -> str:
     """The briefing as plain facts, already ranked and already formatted."""
     parts = []
     if briefing.low_stock:
@@ -98,10 +128,15 @@ def _day_facts(report: DayReport) -> str:
     return " ".join(parts)
 
 
-def register(mcp) -> None:
-    """Add morning_briefing and daily_summary to the server."""
+def register(apps) -> None:
+    """Add morning_briefing and daily_summary, both of which carry a card.
 
-    @mcp.tool(
+    Takes the `Apps` extension rather than the server, because a card-bound tool has to exist before
+    `MCPServer` is constructed: the constructor reads the extension once and never looks again.
+    """
+
+    @apps.tool(
+        resource_uri=cards.BRIEFING,
         name="morning_briefing",
         title="Morning briefing",
         description=(
@@ -112,32 +147,12 @@ def register(mcp) -> None:
         ),
     )
     async def morning_briefing() -> Annotated[CallToolResult, Briefing]:
-        today = dates.today()
         with session() as db:
-            ranked = forecaster.by_urgency(orders.suggest_reorder(db))
-            low = [
-                LowStockLine(
-                    item=s.item.name,
-                    in_stock=units.from_base(s.item, s.on_hand_base),
-                    days_left=s.days_of_stock,
-                    suggest_buying=units.from_base(s.item, s.qty_base),
-                )
-                for s in ranked
-            ]
-            dues = [due_line(db, due, today) for due in ledger.due_by(db, today)]
-            due_total = sum(line.amount_paise for line in dues)
-            outstanding = ledger.outstanding_total(db)
+            briefing = build_briefing(db)
+            return reply.say(await summarizer.say(briefing_facts(briefing)), briefing)
 
-            briefing = Briefing(
-                low_stock=low,
-                due_today=dues,
-                due_today_total=units.rupees(due_total),
-                outstanding=units.rupees(outstanding),
-                outstanding_paise=outstanding,
-            )
-            return reply.say(await summarizer.say(_briefing_facts(briefing)), briefing)
-
-    @mcp.tool(
+    @apps.tool(
+        resource_uri=cards.SUMMARY,
         name="daily_summary",
         title="How the day went",
         description=(

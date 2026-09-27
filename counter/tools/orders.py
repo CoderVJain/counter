@@ -26,6 +26,7 @@ from counter.domain import catalog, idempotency, inventory, orders, units
 from counter.domain.db import session
 from counter.domain.models import Item, Supplier
 from counter.tools import reply
+from counter.ui import cards
 
 
 class OrderRequest(BaseModel):
@@ -146,10 +147,15 @@ def _send(db: Session, draft_id: int) -> dict:
     ).model_dump(mode="json")
 
 
-def register(mcp) -> None:
-    """Add draft_supplier_order and confirm_supplier_order to the server."""
+def register_draft(apps) -> None:
+    """Add draft_supplier_order, which carries the order card.
 
-    @mcp.tool(
+    Split from `register_confirm` because the two register at different moments: a card-bound tool
+    must exist before `MCPServer` is constructed, and the confirmation needs the built server.
+    """
+
+    @apps.tool(
+        resource_uri=cards.ORDER,
         name="draft_supplier_order",
         title="Draft a supplier order",
         description=(
@@ -203,6 +209,10 @@ def register(mcp) -> None:
             )
             spoken = ", ".join(f"{line.quantity} {line.item}" for line in data.lines)
             return reply.say(f"Draft {draft.id} for {who.name}: {spoken}. Shall I send it?", data)
+
+
+def register_confirm(mcp) -> None:
+    """Add confirm_supplier_order. No card: sending is a moment, not something to read."""
 
     @mcp.tool(
         name="confirm_supplier_order",

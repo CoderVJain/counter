@@ -26,18 +26,20 @@ research contradicts.
 ### Scope decisions (from the user)
 
 - **Firm:** Strands Agents SDK, Neon Postgres, own simulator, supplier sim.
-- **Stretch:** AgentCore Memory, Telegram reminders. AWS Builder evidence rests on Bedrock (Nova) + Strands.
+- **Future scope, not built:** AgentCore Memory, Telegram reminders (decided Sep 26, see Phase 4). AWS
+  Builder evidence rests on Bedrock (Nova) + Strands, both of which are genuinely in the runtime path.
 - **Build order:** layer by layer — domain → agent → MCP → UI → demo.
 
 ---
 
 ## Where we are (updated Sep 26, 2026)
 
-**Phases 0 to 3 complete**, ahead of the Oct 10 target for Phase 3. `counter/server.py` mounts the MCP
-Streamable HTTP app in FastAPI and serves the eight tools; `supplier_sim/` answers confirmed orders;
-`domain/audit.py` writes the trail every write now leaves. 221 tests passing, `ruff` clean, and the eval
-run reports **0 wrong writes** on 34 utterances against Nova Micro. The repo is public with MIT.
-Next up is Phase 4: UI cards, `sim_client/`, and the scheduled briefing.
+**Phases 0 to 4 complete**, well ahead of the Oct 17 target for Phase 4. `counter/server.py` mounts the
+MCP Streamable HTTP app in FastAPI and serves the eight tools, three of them carrying MCP Apps cards;
+`sim_client/` is the simulated Alexa+ host, listening and speaking in the browser; `jobs/briefing.py`
+is the scheduled briefing, off unless switched on. 289 tests passing, `ruff` clean, and the eval run
+reports **0 wrong writes** on 34 utterances against Nova Micro. The repo is public with MIT.
+Next up is Phase 5: evals, the Render deployment, `mcp-voice-eval`, and the submission.
 
 | Phase | State | Notes |
 |---|---|---|
@@ -45,7 +47,7 @@ Next up is Phase 4: UI cards, `sim_client/`, and the scheduled briefing.
 | 1 Domain layer | done | schema, stock, ledger, idempotency, units, orders, seed |
 | 2 Agent layer | done | all modules built; eval set run end to end with 0 wrong writes |
 | 3 MCP server | done | 8 tools over Streamable HTTP 2025-11-25, supplier sim, audit log |
-| 4 UI, simulator, jobs | not started | |
+| 4 UI, simulator, jobs | done | 3 cards, `sim_client/` on :8200, briefing job; a spoken sale verified live |
 | 5 Evals, docs, submission | not started | |
 
 ### Bedrock is working (Sep 26, 2026)
@@ -74,7 +76,9 @@ paces itself for that reason.
   1. Nova Micro only. Nothing in `counter/` passes `smart=True` today, and nothing should start without
      an eval showing Micro fails the case.
   2. The parse cache in `agent/parser.py` stays on. A repeated utterance against an unchanged catalog
-     must not be a second call.
+     must not be a second call. One exception, added 27 Sep: a hearing refused by `check_quantities`
+     is **not** remembered. It can never become a sale, and caching it meant the same words got the
+     same question back forever, so a second attempt is worth one more call.
   3. Run the full eval (34 live calls) only when the parser or a prompt changed. For everything else the
      221 tests use `FakeModel` and cost nothing.
   4. Never point a loop, a retry or a scheduled job at the model without a hard call ceiling. The morning
@@ -276,17 +280,24 @@ Goal: the eight tools, spec-compliant, over Streamable HTTP.
 
 ## Phase 4 — UI, simulator, jobs (Oct 14–17)
 
-- `ui/` — MCP Apps resources at `ui://counter/…`, mime `text/html;profile=mcp-app`, referenced from tool metadata:
-  briefing card, low-stock list, order-confirm card, daily summary.
-- `sim_client/` — the simulated Alexa+ experience: connects to `/mcp` over Streamable HTTP, lists tools, lets a
-  Bedrock-backed "brain" pick a tool from a typed or spoken utterance, renders the card in a sandboxed iframe and
-  speaks the text. Clearly labelled **"simulated Alexa+ experience — not affiliated with Amazon"**; no Alexa
-  branding, no Amazon marks.
-- `jobs/` — scheduled morning briefing (autonomous signal).
-- **Stretch, in this order if time allows:** AgentCore Memory wrapper (`memory/`) for nicknames and shop habits;
-  Telegram reminders. Each must earn its place in the 3-minute video.
+**Done, Sep 27.** The full build log is in `phase4.md`.
 
-**Done when:** a spoken-style sentence in `sim_client/` produces a card and a correct DB write.
+- `ui/cards.py` — three MCP Apps resources at `ui://counter/…`, mime `text/html;profile=mcp-app`, bound to
+  `morning_briefing`, `draft_supplier_order` and `daily_summary`. **Three, not four:** the briefing already
+  carries low stock, so a separate low-stock card would have duplicated it.
+- `sim_client/` — the simulated Alexa+ experience on :8200: `host.py` is a real MCP client that advertises the
+  Apps extension by hand, `brain.py` picks one tool from the server's own descriptions, `page.html` listens and
+  speaks with the browser's own APIs. Labelled **"simulated Alexa+ experience - not affiliated with Amazon"**;
+  no Alexa branding, no Amazon marks, asserted by a test.
+- `jobs/briefing.py` — the scheduled morning briefing (autonomous signal), off unless `BRIEFING_ENABLED=true`,
+  one run per shop day, no retry.
+- **AgentCore Memory is not built, and moves to future scope.** Nicknames already live in the database where
+  the parser reads them, so the memory it would hold is held; exercising it would spend credit Phase 5 needs
+  more. Telegram reminders likewise. Neither is missed by the 3-minute video, which is the test that matters.
+
+**Done when:** a spoken-style sentence in `sim_client/` produces a card and a correct DB write. **Met**, and
+verified live against Bedrock as well as in tests: "do kilo cheeni Sharma ji ko, kal dega" records 2 kg of
+sugar on credit, and "good morning" renders the briefing card.
 
 ## Phase 5 — Evals, docs, submission (Oct 18–20)
 
@@ -297,7 +308,7 @@ Goal: the eight tools, spec-compliant, over Streamable HTTP.
 - **Open Source mini-challenge:** extract `mcp-voice-eval` (the runner from `evals/`, generalised to any MCP
   server) into its own repo with MIT license, README and tests. Decide by Oct 8 whether this or `sim_client/` is
   the entry — `sim_client/` is the fallback if time is short.
-- `docs/ARCHITECTURE.md` + diagram; finish `PRODUCT_FEEDBACK.md` (Bedrock/Nova, Strands, AgentCore if used,
+- `docs/ARCHITECTURE.md` + diagram; finish `PRODUCT_FEEDBACK.md` (Bedrock/Nova, Strands, not AgentCore,
   Alexa+ docs — answer all five required questions) and `FRICTION_LOG.md`.
 - Concise README: what it is, setup, run, eval table, simulated-components disclosure.
 - Record the video: **< 3 min**, English, public YouTube, shows the simulated experience working. No third-party

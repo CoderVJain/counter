@@ -27,6 +27,16 @@ class Settings(BaseSettings):
     # refuses requests whose Host header it does not recognise, so a tunnelled demo needs this set.
     public_host: str = ""
     telegram_bot_token: SecretStr = SecretStr("")
+    # The scheduled morning briefing. Off unless switched on, because it is the one thing here that
+    # can call a model while nobody is watching. The hour and minute are shop time, not UTC.
+    briefing_enabled: bool = False
+    briefing_hour: int = 8
+    briefing_minute: int = 0
+    # Where sim_client reaches this server's MCP endpoint. The literal 127.0.0.1 is deliberate:
+    # "localhost" resolves to ::1 first on Windows, uvicorn binds IPv4, and the refused attempt
+    # costs about 1.2 seconds on every connection - measured 27 Sep, against 0.08 by address. The
+    # host opens one connection per utterance, so that was dead air in the middle of the demo.
+    counter_mcp_url: str = "http://127.0.0.1:8000/mcp"
 
 
 @lru_cache

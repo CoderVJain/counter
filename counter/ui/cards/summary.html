@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Day summary</title>
+<!--STYLE-->
+<style>
+  /* The takings are the whole point of the card, so they are the only large thing on it. */
+  .takings {
+    margin: 0;
+    color: var(--brass);
+    font-size: 46px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+
+  .count {
+    margin: 8px 0 24px;
+    color: var(--quiet);
+    font-size: 13px;
+  }
+
+  @media (max-width: 380px) {
+    .takings { font-size: 38px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="head"><span>Day summary</span><span id="day"></span></div>
+
+<p class="takings" id="takings"></p>
+<p class="count" id="count"></p>
+
+<section class="block">
+  <h2>Best today</h2>
+  <table><tbody id="top"></tbody></table>
+  <p class="empty" id="top-empty" hidden>Nothing sold.</p>
+</section>
+
+<div class="sum">
+  <div><span class="label">Given on credit</span><span id="credit"></span></div>
+  <div><span class="label">Still owed in all</span><span id="outstanding"></span></div>
+</div>
+
+<script>
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  // Text is placed with textContent throughout: an item name is data, not markup.
+  function cell(row, text, cls) {
+    var td = row.insertCell();
+    td.textContent = text;
+    if (cls) td.className = cls;
+  }
+
+  // The day arrives as a plain ISO date. Splitting it beats parsing it, which would shift the date
+  // by one in any timezone behind UTC, and the shop is five and a half hours ahead of it.
+  function spokenDay(iso) {
+    if (!iso) return "";
+    var parts = String(iso).split("-");
+    if (parts.length !== 3) return String(iso);
+    return Number(parts[2]) + " " + (MONTHS[Number(parts[1]) - 1] || "");
+  }
+
+  function render(data) {
+    document.getElementById("day").textContent = spokenDay(data.day);
+    document.getElementById("takings").textContent = data.takings || "";
+
+    var sales = data.sales || 0;
+    document.getElementById("count").textContent = sales === 1 ? "1 sale" : sales + " sales";
+
+    var items = data.top_items || [];
+    var body = document.getElementById("top");
+    body.replaceChildren();
+    items.forEach(function (item) {
+      var row = body.insertRow();
+      cell(row, item.item);
+      cell(row, item.quantity, "mid");
+      cell(row, item.amount, "fig money");
+    });
+    document.getElementById("top-empty").hidden = items.length > 0;
+
+    document.getElementById("credit").textContent = data.credit_given || "";
+    document.getElementById("outstanding").textContent = data.outstanding || "";
+  }
+</script>
+<!--BRIDGE-->
+</body>
+</html>

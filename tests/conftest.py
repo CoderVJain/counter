@@ -1,10 +1,19 @@
-"""In-memory SQLite for tests: fast, isolated, no credentials."""
+"""In-memory SQLite for tests: fast, isolated, no credentials.
 
+`free_port` and `serve` live here because more than one test file needs a real server. A real socket
+is not optional for anything that crosses the wire: the Phase 3 framing bug passed every in-process
+test and still sent malformed bytes over a port.
+"""
+
+import socket
+import threading
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import httpx2
 import pytest
+import uvicorn
 from mcp.client import Client
 from mcp.client.streamable_http import streamable_http_client
 from sqlalchemy import create_engine
@@ -17,6 +26,24 @@ from counter.domain.models import Base
 from counter.server import create_app
 
 BASE_URL = "http://localhost:8000"
+
+
+@pytest.fixture
+def free_port() -> int:
+    """A port the operating system says is free, so tests never collide with a real server."""
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+def serve(app, port: int):
+    """Start one real uvicorn server in a thread and wait until it is listening."""
+    server = uvicorn.Server(uvicorn.Config(app, port=port, log_level="error"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    while not server.started:
+        time.sleep(0.05)
+    return server, thread
 
 
 @pytest.fixture
@@ -34,9 +61,17 @@ def shop(monkeypatch):
     """A database the server's own `session()` hands out, so tools run against it unchanged.
 
     StaticPool keeps one connection, which is what makes an in-memory database visible to the
-    several short sessions a tool call opens and closes.
+    several short sessions a tool call opens and closes. That one connection is created here and
+    then used by a server running in another thread, which SQLite refuses by default, so
+    `check_same_thread` is off: without it a real-socket test fails inside the tool rather than at
+    the assertion. Nothing here writes from two threads at once.
     """
-    engine = create_engine("sqlite://", future=True, poolclass=StaticPool)
+    engine = create_engine(
+        "sqlite://",
+        future=True,
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False},
+    )
     Base.metadata.create_all(engine)
     maker = sessionmaker(bind=engine, future=True, expire_on_commit=False)
     monkeypatch.setattr(db_module, "SessionLocal", maker)

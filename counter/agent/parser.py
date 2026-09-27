@@ -161,20 +161,34 @@ def resolve(db: Session, heard: HeardSale) -> ParsedSale:
 # day. Only what the model HEARD is cached; resolution re-runs against the live database, so a
 # price change or a new item is picked up immediately. The catalog never reaches the prompt, so
 # there is no catalog version to key on.
+#
+# A hearing is remembered only once it has passed `check_quantities`. Caching an earlier version
+# of this remembered every hearing, including the ones that were then refused, and a refused
+# hearing can never become a sale - so the shopkeeper who repeated the sentence word for word got
+# the same question back forever, for free, with no way out but different words. Paying again for
+# a second attempt at a sentence that failed is the cheaper mistake.
 MAX_CACHED = 256
 _heard_cache: dict[str, HeardSale] = {}
 
 
+def _key(utterance: str) -> str:
+    """One sentence, normalised. Case and spacing do not make it a different sentence."""
+    return " ".join(utterance.lower().split())
+
+
 async def _hear(utterance: str) -> HeardSale:
-    """What the model made of the sentence, remembered so a repeat costs nothing."""
-    key = " ".join(utterance.lower().split())
-    if key in _heard_cache:
-        return _heard_cache[key]
-    heard = await llm.parse(utterance, HeardSale, system=SYSTEM)
+    """What the model made of the sentence, from memory when this sentence has been heard before."""
+    remembered = _heard_cache.get(_key(utterance))
+    if remembered is not None:
+        return remembered
+    return await llm.parse(utterance, HeardSale, system=SYSTEM)
+
+
+def _remember(utterance: str, heard: HeardSale) -> None:
+    """Keep a hearing that passed its checks, so saying the same thing again costs nothing."""
     if len(_heard_cache) >= MAX_CACHED:
         del _heard_cache[next(iter(_heard_cache))]
-    _heard_cache[key] = heard
-    return heard
+    _heard_cache[_key(utterance)] = heard
 
 
 SPOKEN_WORD = re.compile(r"[a-z]+|\d+(?:\.\d+)?")
@@ -211,6 +225,86 @@ def check_quantities(utterance: str, heard: HeardSale) -> None:
         if not unclaimed[said]:
             raise NeedsClarification(f"How much {line.item}? I did not catch the amount.")
         unclaimed[said] -= 1
+
+
+def _is_number(token: str) -> bool:
+    """A token that states a quantity, written as digits or spoken as a word."""
+    return token[0].isdigit() or token in units.QUANTITY_WORDS
+
+
+def _item_at(tokens: list[str], item: str) -> int | None:
+    """Where the sentence names this item, or None when it does not name it in these words."""
+    wanted = SPOKEN_WORD.findall(item.lower())
+    for word in wanted:
+        if word in tokens:
+            return tokens.index(word)
+    return None
+
+
+def _nearest_number(tokens: list[str], start: int, step: int, claimed: set[int]) -> int | None:
+    """The first number on one side of the item, and only if no other line has taken it.
+
+    The scan stops at the first number it meets rather than looking past it. Reaching past a number
+    that belongs to another line is how "do doodh aur ek bread" would hand the bread the milk's two:
+    the nearest number to "bread" is "ek", and if that is already spoken for, the honest answer is a
+    question, not the next number along.
+    """
+    index = start + step
+    while 0 <= index < len(tokens):
+        if _is_number(tokens[index]):
+            return None if index in claimed else index
+        index += step
+    return None
+
+
+def recover_quantities(utterance: str, heard: HeardSale) -> HeardSale:
+    """Read a quantity out of the sentence when the model did not copy one from it.
+
+    Measured on 27 Sep, "do kilo cheeni Sharma ji ko, kal dega" comes back from Nova Micro with qty
+    "ek": two heard as one, while the customer, the credit flag and the due date are all correct.
+    At temperature zero it says "ek" every time, so asking again is a fresh call to the same wrong
+    answer, and `check_quantities` can only turn it into a question the shopkeeper cannot get past
+    by saying the same words.
+
+    The quantity is in the sentence, and the sentence is right here. So it is taken from the
+    sentence: the nearest number before the item it belongs to, or after it when the sentence puts
+    it there. This is the project's own rule - the model understands, code decides - applied to the
+    one field where a model has already been measured wrong twice.
+
+    Nothing is guessed. A number another line has already claimed is left alone, a line whose item
+    the sentence does not name is left alone, and a line with no number near it is left alone, which
+    means `check_quantities` still refuses it and the shopkeeper is still asked. Every quantity this
+    writes is a word the sentence actually contains, which is the guarantee that guard exists for.
+    """
+    tokens = SPOKEN_WORD.findall(utterance.lower())
+    fixed = heard.model_copy(deep=True)
+    claimed: set[int] = set()
+    kept: set[int] = set()
+
+    # A quantity the model did copy keeps its own word, so repairing another line cannot steal it.
+    # Which line holds which word is tracked, because two lines can be given the same word and only
+    # the first of them is entitled to it.
+    for position, line in enumerate(fixed.lines):
+        said = line.qty.strip().lower()
+        for index, token in enumerate(tokens):
+            if token == said and index not in claimed:
+                claimed.add(index)
+                kept.add(position)
+                break
+
+    for position, line in enumerate(fixed.lines):
+        if position in kept:
+            continue
+        at = _item_at(tokens, line.item)
+        if at is None:
+            continue
+        before = _nearest_number(tokens, at, -1, claimed)
+        found = before if before is not None else _nearest_number(tokens, at, 1, claimed)
+        if found is None:
+            continue
+        claimed.add(found)
+        line.qty = tokens[found]
+    return fixed
 
 
 def _spoken_units(utterance: str) -> set[str]:
@@ -251,6 +345,7 @@ def drop_unspoken_units(utterance: str, heard: HeardSale) -> HeardSale:
 
 async def parse_sale(db: Session, utterance: str) -> ParsedSale:
     """Listen to one sentence and return a sale ready to write, or ask a question."""
-    heard = await _hear(utterance)
-    check_quantities(utterance, heard)
+    heard = recover_quantities(utterance, await _hear(utterance))
+    check_quantities(utterance, heard)  # raises before anything is remembered
+    _remember(utterance, heard)
     return resolve(db, drop_unspoken_units(utterance, heard))

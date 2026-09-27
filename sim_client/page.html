@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Counter - simulated assistant</title>
+    <!-- Empty on purpose: a card cannot reach the network and neither should this page, and a 404
+         for a favicon is one more red thing in the console during a demo. -->
+    <link rel="icon" href="data:," />
+
+    <!-- The same khata palette the cards use, so the card sits inside the page rather than on it.
+         No webfonts and no motion here either: this stands in for a device, not a web app. -->
+    <style>
+      :root {
+        --ink: #141c2e;
+        --panel: #1b2338;
+        --rule: #2b3a54;
+        --chalk: #f4f1e8;
+        --quiet: #90a0b9;
+        --brass: #e3a81e;
+        --late: #f0685c;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 28px 20px 40px;
+        background: var(--ink);
+        color: var(--chalk);
+        font: 16px/1.45 ui-sans-serif, "Segoe UI", system-ui, sans-serif;
+        font-variant-numeric: tabular-nums;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      main {
+        max-width: 560px;
+        margin: 0 auto;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--rule);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 19px;
+        letter-spacing: -0.01em;
+      }
+
+      .version {
+        color: var(--quiet);
+        font-size: 12px;
+      }
+
+      /* Said once, at the top, and never dressed up: this is not Alexa+ and must not look like it. */
+      .disclaimer {
+        margin: 12px 0 24px;
+        color: var(--quiet);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .ask {
+        display: flex;
+        gap: 10px;
+      }
+
+      input {
+        flex: 1;
+        padding: 12px 14px;
+        border: 1px solid var(--rule);
+        border-radius: 8px;
+        background: var(--panel);
+        color: var(--chalk);
+        font: inherit;
+      }
+
+      input:focus-visible,
+      button:focus-visible {
+        outline: 2px solid var(--brass);
+        outline-offset: 2px;
+      }
+
+      button {
+        padding: 12px 18px;
+        border: 1px solid var(--rule);
+        border-radius: 8px;
+        background: var(--panel);
+        color: var(--chalk);
+        font: inherit;
+        cursor: pointer;
+      }
+
+      button[disabled] {
+        opacity: 0.5;
+        cursor: default;
+      }
+
+      /* Listening has to be obvious from across a room, so it is the button's whole colour. */
+      #mic.listening {
+        border-color: var(--brass);
+        background: var(--brass);
+        color: var(--ink);
+      }
+
+      #status {
+        min-height: 20px;
+        margin: 14px 0 0;
+        color: var(--quiet);
+        font-size: 13px;
+      }
+
+      .turn {
+        margin-top: 26px;
+        padding-top: 18px;
+        border-top: 1px solid var(--rule);
+      }
+
+      .heard {
+        margin: 0 0 10px;
+        color: var(--quiet);
+        font-size: 14px;
+      }
+
+      .said {
+        margin: 0;
+        font-size: 19px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+
+      .said.question {
+        color: var(--late);
+      }
+
+      .used {
+        margin: 12px 0 0;
+        color: var(--quiet);
+        font-size: 12px;
+      }
+
+      /* The card is the tool's own document. It gets a frame and nothing else from us. */
+      iframe {
+        display: block;
+        width: 100%;
+        margin-top: 18px;
+        border: 1px solid var(--rule);
+        border-radius: 10px;
+        background: var(--ink);
+      }
+    </style>
+  </head>
+
+  <body>
+    <main>
+      <header>
+        <h1>Counter</h1>
+        <span class="version" id="version">simulated host</span>
+      </header>
+
+      <p class="disclaimer">
+        Simulated Alexa+ experience - not affiliated with Amazon. Speech recognition and speech
+        output are your browser's own. Supplier orders and reminders are simulated.
+      </p>
+
+      <form class="ask" id="ask">
+        <input
+          id="utterance"
+          type="text"
+          autocomplete="off"
+          maxlength="300"
+          placeholder="Say or type: do kilo cheeni Sharma ji ko, kal dega"
+          aria-label="What the shopkeeper said"
+        />
+        <button id="mic" type="button" title="Speak">Speak</button>
+        <button type="submit">Send</button>
+      </form>
+      <p id="status" role="status" aria-live="polite"></p>
+
+      <section id="turns"></section>
+    </main>
+
+    <script>
+      "use strict";
+
+      // The host half of the MCP Apps postMessage dialect. The card's half is in
+      // counter/ui/cards/bridge.js, and between them they implement a deliberate subset: the card
+      // initializes, the host posts one tool result in, the card reports its height back. A card
+      // never calls a tool, so nothing else is needed. This is documented as a subset rather than
+      // claimed as full compliance.
+      var PROTOCOL_VERSION = "2026-01-26";
+
+      var form = document.getElementById("ask");
+      var field = document.getElementById("utterance");
+      var mic = document.getElementById("mic");
+      // Not `status`: a top-level `var status` aliases window.status, a legacy string property, and
+      // the element is silently replaced by text.
+      var statusLine = document.getElementById("status");
+      var turns = document.getElementById("turns");
+
+      function say(text) {
+        // Free, keyless, and on the device. The only cost in a turn is the tool choice.
+        if (!window.speechSynthesis) return;
+        window.speechSynthesis.cancel();
+        var utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.05;
+        window.speechSynthesis.speak(utterance);
+      }
+
+      // Everything below writes with textContent. The reply carries customer names, item aliases and
+      // supplier notes, none of which this page wrote, so none of it may become markup.
+      function line(className, text) {
+        var element = document.createElement("p");
+        element.className = className;
+        element.textContent = text;
+        return element;
+      }
+
+      function renderCard(container, turn) {
+        var frame = document.createElement("iframe");
+        // No allow-same-origin: the card must not reach this page's origin, its storage or its DOM.
+        frame.setAttribute("sandbox", "allow-scripts");
+        frame.setAttribute("title", "Card from " + turn.tool);
+        frame.height = 120;
+        frame.srcdoc = turn.card_html;
+
+        window.addEventListener("message", function (event) {
+          // The iframe is sandboxed, so its origin is opaque and event.origin is "null". Identity
+          // comes from the window the message actually came from, never from the origin string.
+          if (event.source !== frame.contentWindow) return;
+          var message = event.data;
+          if (!message || message.jsonrpc !== "2.0") return;
+
+          if (message.method === "ui/initialize") {
+            frame.contentWindow.postMessage(
+              {
+                jsonrpc: "2.0",
+                id: message.id,
+                result: {
+                  protocolVersion: PROTOCOL_VERSION,
+                  hostInfo: { name: "counter-sim-client", version: "0.1.0" },
+                  hostContext: { displayMode: "inline" },
+                  capabilities: {},
+                },
+              },
+              "*"
+            );
+            return;
+          }
+
+          if (message.method === "ui/notifications/initialized") {
+            frame.contentWindow.postMessage(
+              {
+                jsonrpc: "2.0",
+                method: "ui/notifications/tool-result",
+                params: { content: [{ type: "text", text: turn.spoken }], structuredContent: turn.data },
+              },
+              "*"
+            );
+            return;
+          }
+
+          if (message.method === "ui/notifications/size-changed") {
+            // The card measures itself, including after layout settles, so this is the only height
+            // worth trusting.
+            frame.height = message.params.height;
+          }
+        });
+
+        container.appendChild(frame);
+      }
+
+      function render(heard, turn) {
+        // What the handshake actually settled on, shown rather than claimed. The hackathon requires
+        // 2025-11-25 or later, and this is the one place a viewer can see it.
+        if (turn.protocol) {
+          document.getElementById("version").textContent = "MCP " + turn.protocol;
+        }
+
+        var section = document.createElement("section");
+        section.className = "turn";
+        // A question can arrive two ways: the tool refused, or it answered with a question in the
+        // data - which is what the sale tool does deliberately, so the assistant simply speaks it.
+        // Both are the shop asking rather than telling, and both should look like it.
+        var asking = !turn.ok || (turn.data && turn.data.question);
+
+        section.appendChild(line("heard", "Heard: " + heard));
+        section.appendChild(line("said" + (asking ? " question" : ""), turn.spoken));
+        if (turn.tool) section.appendChild(line("used", "tool: " + turn.tool));
+        if (turn.card_html && turn.data) renderCard(section, turn);
+
+        turns.prepend(section);
+        say(turn.spoken);
+      }
+
+      async function send(heard) {
+        var spoken = heard.trim();
+        if (!spoken) return;
+        statusLine.textContent = "Thinking...";
+        field.value = "";
+        try {
+          var response = await fetch("/say", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ utterance: spoken }),
+          });
+          if (!response.ok) throw new Error("the host answered " + response.status);
+          var turn = await response.json();
+          statusLine.textContent = "";
+          render(spoken, turn);
+        } catch (error) {
+          statusLine.textContent = "Could not reach the shop: " + error.message;
+        }
+      }
+
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        send(field.value);
+      });
+
+      // The microphone, where the browser has one. The text box is the fallback and is always there,
+      // because dictation in a noisy shop fails and a demo cannot wait for it.
+      var Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!Recognition) {
+        mic.disabled = true;
+        mic.title = "This browser has no speech recognition. Type instead.";
+        statusLine.textContent = "No microphone support in this browser - type the sentence instead.";
+      } else {
+        var recognition = new Recognition();
+        recognition.lang = "en-IN"; // Indian English handles the Hinglish in the demo best
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        mic.addEventListener("click", function () {
+          if (mic.classList.contains("listening")) {
+            recognition.stop();
+            return;
+          }
+          statusLine.textContent = "Listening...";
+          mic.classList.add("listening");
+          recognition.start();
+        });
+
+        recognition.addEventListener("result", function (event) {
+          send(event.results[0][0].transcript);
+        });
+        recognition.addEventListener("error", function (event) {
+          statusLine.textContent = "Microphone: " + event.error + ". Type the sentence instead.";
+        });
+        recognition.addEventListener("end", function () {
+          mic.classList.remove("listening");
+        });
+      }
+    </script>
+  </body>
+</html>

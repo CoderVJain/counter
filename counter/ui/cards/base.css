@@ -1,0 +1,154 @@
+/* Shared by all three cards. Inlined by cards.py, because a card has no origin to fetch it from.
+
+   The shape is a bahi khata page, the cloth-bound credit ledger a kirana shop already keeps: names
+   down the left, figures right-aligned and aligned to each other, a hairline under every row, and a
+   double rule above a total. That last one is not decoration. It is how a ledger says a sum follows.
+
+   Colour comes from the rest of that world rather than from a palette: indigo like ballpoint on a
+   khata page and like a painted shop board, brass like the weights on a counter scale, sindoor for
+   what is late. Brass is reserved for money and nothing else, so a figure in brass is always rupees.
+
+   There are no webfonts and no motion. A card cannot reach the network, and a shopkeeper reading it
+   with one hand on a scale has about two seconds, which is not long enough for an animation. */
+
+:root {
+  --ink: #141c2e;
+  --rule: #2b3a54;
+  --rule-sum: #4a5d80;
+  --chalk: #f4f1e8;
+  --quiet: #90a0b9;
+  --brass: #e3a81e;
+  --late: #f0685c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 20px 22px 18px;
+  background: var(--ink);
+  color: var(--chalk);
+  font: 15px/1.4 ui-sans-serif, "Segoe UI", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* What this is, and who or when it concerns. Sits above everything and is read last. */
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+  color: var(--quiet);
+  font-size: 13px;
+}
+
+/* The one thing worth knowing, in the words a shopkeeper would use. */
+.finding {
+  margin: 0 0 22px;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.block {
+  margin-bottom: 22px;
+}
+
+.block h2 {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--quiet);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+td {
+  padding: 9px 0 8px;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: baseline;
+}
+
+tr:last-child td {
+  border-bottom: 0;
+}
+
+/* The middle column carries the reason: how much is left, how late it is. */
+td.mid {
+  padding-left: 12px;
+  color: var(--quiet);
+  font-size: 13px;
+}
+
+td.fig {
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+td.money {
+  color: var(--brass);
+}
+
+td.late {
+  color: var(--late);
+}
+
+/* A double rule, then the sums. The convention is borrowed on purpose: it is already understood. */
+.sum {
+  border-top: 4px double var(--rule-sum);
+  padding-top: 12px;
+}
+
+.sum div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 0;
+}
+
+.sum .label {
+  color: var(--quiet);
+  font-size: 13px;
+}
+
+.sum .money {
+  color: var(--brass);
+  font-weight: 600;
+}
+
+.empty {
+  margin: 0;
+  padding: 9px 0;
+  color: var(--quiet);
+}
+
+.note {
+  margin: 14px 0 0;
+  color: var(--quiet);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* Propped by the till, a card can be narrow. The reason column is the last thing to go, because it
+   is what justifies the row: a number to buy, with no "2 kg left" beside it, is an order to trust. */
+@media (max-width: 330px) {
+  body {
+    padding: 16px;
+  }
+
+  .finding {
+    font-size: 19px;
+  }
+
+  td.mid {
+    display: none;
+  }
+}

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Morning briefing</title>
+<!--STYLE-->
+</head>
+<body>
+
+<p class="finding" id="finding"></p>
+
+<section class="block">
+  <h2>Running out</h2>
+  <table><tbody id="low"></tbody></table>
+  <p class="empty" id="low-empty" hidden>Stock is fine.</p>
+</section>
+
+<section class="block">
+  <h2>Due today</h2>
+  <table><tbody id="dues"></tbody></table>
+  <p class="empty" id="dues-empty" hidden>Nobody owes you today.</p>
+</section>
+
+<div class="sum">
+  <div><span class="label">Due today</span><span class="money" id="due-total"></span></div>
+  <div><span class="label">Still owed in all</span><span id="outstanding"></span></div>
+</div>
+
+<script>
+  // Text is placed with textContent throughout. An item alias and a customer's nickname are both
+  // typed by hand and travel through the shop's database, so they are treated as text, never markup.
+  function cell(row, text, cls) {
+    var td = row.insertCell();
+    td.textContent = text;
+    if (cls) td.className = cls;
+  }
+
+  function fill(body, note, lines, draw) {
+    body.replaceChildren();
+    lines.forEach(function (line) { draw(body.insertRow(), line); });
+    note.hidden = lines.length > 0;
+  }
+
+  // "2 kg, about 1 day" reads the way a shopkeeper thinks about it: how much, and how long it lasts.
+  function reason(line) {
+    if (line.days_left === null || line.days_left === undefined) return line.in_stock + ", not sold yet";
+    var days = Math.round(line.days_left);
+    if (days < 1) return line.in_stock + ", gone today";
+    return line.in_stock + ", about " + days + (days === 1 ? " day" : " days");
+  }
+
+  function lateness(line) {
+    if (!line.overdue) return line.due || "no day set";
+    return line.due ? line.due + ", late" : "late";
+  }
+
+  function finding(data) {
+    var low = (data.low_stock || []).length;
+    var dues = (data.due_today || []).length;
+    if (low) return low === 1 ? "1 item running out" : low + " items running out";
+    if (dues) return dues === 1 ? "1 payment due today" : dues + " payments due today";
+    return "Nothing needs you this morning.";
+  }
+
+  function render(data) {
+    document.getElementById("finding").textContent = finding(data);
+
+    fill(document.getElementById("low"), document.getElementById("low-empty"),
+      data.low_stock || [], function (row, line) {
+        cell(row, line.item);
+        cell(row, reason(line), "mid");
+        cell(row, "buy " + line.suggest_buying, "fig");
+      });
+
+    fill(document.getElementById("dues"), document.getElementById("dues-empty"),
+      data.due_today || [], function (row, line) {
+        // The name carries the lateness too. On a narrow card the reason column is hidden, and
+        // "who is overdue" is the one thing that must not disappear with it.
+        cell(row, line.customer, line.overdue ? "late" : null);
+        cell(row, lateness(line), line.overdue ? "mid late" : "mid");
+        cell(row, line.amount, "fig money");
+      });
+
+    document.getElementById("due-total").textContent = data.due_today_total || "";
+    document.getElementById("outstanding").textContent = data.outstanding || "";
+  }
+</script>
+<!--BRIDGE-->
+</body>
+</html>

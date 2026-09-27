@@ -222,15 +222,109 @@ async def test_the_cache_holds_what_was_heard_not_what_it_resolved_to(shop, monk
     assert second.total_paise == 10000
 
 
-async def test_a_quantity_nobody_said_is_questioned_not_written(shop, monkeypatch):
-    """Measured: "do kilo cheeni cash" came back as qty "bees". Twenty kilos must not leave a shelf."""
+def test_a_quantity_the_model_dropped_is_read_from_the_sentence():
+    """The measured failure: "do" comes back as "ek". The sentence says "do", so the code takes it."""
+    said = "do kilo cheeni Sharma ji ko, kal dega"
+    misheard = heard(lines=[HeardLine(item="cheeni", qty="ek", unit="kilo")])
+
+    fixed = parser.recover_quantities(said, misheard)
+
+    assert [line.qty for line in fixed.lines] == ["do"]
+    parser.check_quantities(said, fixed)  # and the guard still passes, because "do" was spoken
+
+
+def test_each_item_gets_the_number_next_to_it():
+    said = "do doodh aur teen bread"
+    misheard = heard(lines=[HeardLine(item="doodh", qty="ek"), HeardLine(item="bread", qty="ek")])
+
+    fixed = parser.recover_quantities(said, misheard)
+
+    assert [line.qty for line in fixed.lines] == ["do", "teen"]
+
+
+def test_a_number_that_belongs_to_another_line_is_never_taken():
+    """ "ek" is the bread's. The milk must be asked about, not handed the bread's number."""
+    said = "doodh aur ek bread"
+    misheard = heard(lines=[HeardLine(item="doodh", qty="paanch"), HeardLine(item="bread", qty="ek")])
+
+    fixed = parser.recover_quantities(said, misheard)
+
+    assert fixed.lines[0].qty == "paanch", "nothing in the sentence is the milk's, so leave it"
+    with pytest.raises(parser.NeedsClarification):
+        parser.check_quantities(said, fixed)
+
+
+def test_a_quantity_the_model_copied_correctly_is_left_alone():
+    said = "2 kilo cheeni aur 3 packet maggi"
+    right = heard(
+        lines=[
+            HeardLine(item="cheeni", qty="2", unit="kilo"),
+            HeardLine(item="maggi", qty="3", unit="packet"),
+        ]
+    )
+
+    fixed = parser.recover_quantities(said, right)
+
+    assert [line.qty for line in fixed.lines] == ["2", "3"]
+
+
+def test_a_sentence_with_no_number_at_all_is_still_a_question():
+    """Recovery never invents. A sentence that states no quantity must still be asked about."""
+    said = "cheeni Sharma ji ko"
+    misheard = heard(lines=[HeardLine(item="cheeni", qty="ek")])
+
+    fixed = parser.recover_quantities(said, misheard)
+
+    with pytest.raises(parser.NeedsClarification):
+        parser.check_quantities(said, fixed)
+
+
+def test_a_number_after_the_item_is_found_too():
+    said = "cheeni 2 kilo"
+    misheard = heard(lines=[HeardLine(item="cheeni", qty="ek", unit="kilo")])
+
+    assert parser.recover_quantities(said, misheard).lines[0].qty == "2"
+
+
+async def test_a_refused_hearing_is_not_remembered(shop, monkeypatch):
+    """A hearing that failed its check can never become a sale, so it must not be kept.
+
+    Keeping it made a miscopied quantity permanent: the shopkeeper repeating the same words got the
+    same question back for the life of the process, with no way out but different words.
+    """
+    calls = []
+
+    async def misheard(prompt, out, *, system=None, smart=False):
+        calls.append(prompt)
+        return heard(lines=[HeardLine(item="cheeni", qty="bees", unit="kilo")])
+
+    parser._heard_cache.clear()
+    monkeypatch.setattr(parser.llm, "parse", misheard)
+    for _ in range(2):
+        with pytest.raises(parser.NeedsClarification):
+            await parser.parse_sale(shop, "cheeni Sharma ji ko")
+
+    assert len(calls) == 2, "the second attempt must reach the model again"
+    assert not parser._heard_cache
+    parser._heard_cache.clear()
+
+
+async def test_a_quantity_nobody_said_is_never_written(shop, monkeypatch):
+    """Measured: "do kilo cheeni cash" came back as qty "bees". Twenty kilos must not leave a shelf.
+
+    This used to be a question. Now the sentence itself supplies the answer - it says "do" - so the
+    sale records two kilos. What the model claimed is still never written, which is the point.
+    """
 
     async def misheard(prompt, out, *, system=None, smart=False):
         return heard(lines=[HeardLine(item="cheeni", qty="bees", unit="kilo")])
 
+    parser._heard_cache.clear()
     monkeypatch.setattr(parser.llm, "parse", misheard)
-    with pytest.raises(parser.NeedsClarification):
-        await parser.parse_sale(shop, "do kilo cheeni cash")
+    sale = await parser.parse_sale(shop, "do kilo cheeni cash")
+
+    assert sale.lines[0].qty_base == 2000, "two kilos, as spoken - not twenty"
+    parser._heard_cache.clear()
 
 
 async def test_a_quantity_that_was_spoken_passes(shop, monkeypatch):

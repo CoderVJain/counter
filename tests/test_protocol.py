@@ -16,18 +16,15 @@ This must run in CI.
 """
 
 import asyncio
-import socket
-import threading
-import time
 
 import httpx
 import httpx2
 import pytest
-import uvicorn
 from mcp.client import Client
 from mcp_types.version import is_version_at_least
 
 from counter.server import create_app
+from tests.conftest import serve
 
 REQUIRED_VERSION = "2025-11-25"
 
@@ -43,24 +40,6 @@ TOOLS = {
 }
 
 pytestmark = pytest.mark.usefixtures("no_model")
-
-
-@pytest.fixture
-def free_port() -> int:
-    """A port the operating system says is free, so tests never collide with a real server."""
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        return probe.getsockname()[1]
-
-
-def serve(app, port: int):
-    """Start one real uvicorn server in a thread and wait until it is listening."""
-    server = uvicorn.Server(uvicorn.Config(app, port=port, log_level="error"))
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    while not server.started:
-        time.sleep(0.05)
-    return server, thread
 
 
 async def test_a_live_session_agrees_on_the_required_protocol(connect):

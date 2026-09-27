@@ -133,11 +133,70 @@ One entry per problem: what was attempted, what happened, severity, workaround, 
 - **Severity:** High for this class of application. A wrong quantity is silent: 1 kg instead of 2 kg passes
   every validation, writes a plausible ledger row, and the shopkeeper finds out when the stock does not match.
   Anyone building voice data entry on Nova and trusting a copied field will ship this bug.
+- **Still true on 27 Sep:** `"do kilo cheeni Sharma ji ko, kal dega"` still returns qty `"ek"`, and at
+  temperature 0 it returns it every time, so retrying the same sentence is a fresh call to the same wrong
+  answer. Everything else in that sentence - customer, credit flag, due date - comes back correct. The
+  field that is hardest for the model is the one it was told simply to copy.
 - **Workaround:** Do not trust the field. `counter/agent/parser.check_quantities` tokenises the utterance and
   rejects any quantity that does not appear in it, turning a silent wrong write into one clarifying question.
   The utterance is already in hand, so the check is free; it also guards against future model drift.
+  As of 27 Sep that check is the floor, not the answer: `parser.recover_quantities` now reads the quantity out of
+  the sentence itself - the nearest number to the item it belongs to - so a miscopied field is repaired from
+  the input rather than asked about. It never reaches past a number another line has claimed, and it leaves
+  a line alone when the sentence holds no number for it, so the guard above still catches whatever is left.
+  The model keeps the part it is good at, which is knowing that "Sharma ji ko" and "kal dega" mean credit
+  due tomorrow.
 - **Suggestion:** Two things would have saved a day here. First, document this failure mode for Nova
   structured output: verbatim extraction degrades as unrelated tokens are added, and the model substitutes a
   plausible in-domain value rather than abstaining. Second, expose a per-field confidence or an "extracted
   span" for structured output, so a caller can check that a value came from the input instead of reimplementing
   that check themselves. A model that is asked to transcribe should be able to say where it read something.
+
+## 7. MCP Apps ships a server half and no client half
+
+- **Date:** 2026-09-26
+- **Scope:** the MCP Python SDK (`mcp` 2.1.1), reached through the Alexa+ track's requirement to serve cards.
+  Not an Amazon component, but it is on the path any add-on takes to render anything, so it is recorded here.
+- **Task:** Render a tool's card in our own host, the way Alexa+ would, and have the server know the host can
+  render it.
+- **Steps:** Built the server side with `mcp.server.apps.Apps`, which is complete and pleasant: `@apps.tool`,
+  `add_html_resource`, and `client_supports_apps(ctx)` for graceful degradation. Then searched the installed
+  package for the same extension identifier on the client side.
+- **Expected:** A matching client helper, so a host can declare card support the way a server declares it.
+- **Actual:** Every hit is in server files. `client_supports_apps` is true only when the client advertised the
+  identifier **and** listed `text/html;profile=mcp-app` under `mimeTypes`, so a host must know both by reading
+  the server's source and then hand-roll `advertise("io.modelcontextprotocol/ui", {"mimeTypes": [...]})`.
+  The asymmetry is easy to miss: a host that simply connects gets text and never learns why.
+- **Severity:** Medium. It cost an hour and a source read, and a host built without that read silently loses
+  cards rather than failing.
+- **Workaround:** `sim_client/host.py` advertises the extension by hand, with the identifier and the mime type
+  written down beside the server's own constants.
+- **Suggestion:** Ship a client-side counterpart - even one line, `apps_client()` returning that advertisement -
+  and say in the Apps docs that a host must advertise both identifier and mime type before a carded tool will
+  send it anything.
+
+## 8. The card-to-host bridge is specified but not implemented anywhere
+
+- **Date:** 2026-09-26
+- **Scope:** the ext-apps postMessage dialect, same scope note as entry 7.
+- **Task:** Let a card receive its tool's result and report its own height, in a way that works in real hosts
+  and not only in ours.
+- **Steps:** Read the spec, then the SDK for an implementation of the card side or the host side of the
+  `postMessage` conversation.
+- **Expected:** A small shared implementation, since every card and every host needs exactly the same one.
+- **Actual:** Neither side is in the SDK. The first draft of our cards therefore invented a message of our own
+  design, which would have rendered in `sim_client` and shown blank in Claude, Claude Desktop, VS Code Copilot,
+  Goose, Postman and MCPJam - all of which already support MCP Apps. The real dialect is `ui/initialize`, then
+  `ui/notifications/initialized`, then `ui/notifications/tool-result`, with the card answering
+  `ui/notifications/size-changed`. Nothing in the tooling would have caught the invented version: the card
+  renders, the host is happy, and only a different host shows the blank.
+- **Severity:** Medium-high. A protocol with no reference implementation and no conformance check is a protocol
+  everyone implements slightly differently.
+- **Workaround:** `counter/ui/cards/bridge.js` speaks the real dialect, `sim_client/page.html` implements the
+  host half, and a test asserts each method name so it cannot drift back. Both sides implement a deliberate
+  **subset**: our cards are read-only, so they never call a tool back. This is stated in the README rather than
+  described as full compliance.
+- **Suggestion:** Publish a reference bridge for both sides, and a conformance page a card can be pointed at
+  that reports which messages it answered. Sizing especially deserves a worked example: a first measurement
+  taken before layout settles is wrong, and the failure is a clipped card in front of an audience.
+

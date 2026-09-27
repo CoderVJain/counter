@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Draft order</title>
+<!--STYLE-->
+<style>
+  /* This card asks for a decision rather than reporting one, so the gate is the loudest thing on it.
+     An outline, not a filled button: nothing here is clickable, and it must not pretend to be. */
+  .gate {
+    margin-top: 22px;
+    padding: 13px 15px;
+    border: 1px solid var(--brass);
+    border-radius: 3px;
+    color: var(--brass);
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<!-- Only the supplier goes up here. "Draft order" would repeat what the line below already says. -->
+<div class="head"><span id="supplier"></span></div>
+
+<p class="finding" id="finding"></p>
+
+<table><tbody id="lines"></tbody></table>
+<p class="empty" id="lines-empty" hidden>Nothing on this draft.</p>
+
+<p class="gate" id="gate" hidden>Say &ldquo;confirm&rdquo; to send it</p>
+
+<p class="note">Simulated order. No supplier is contacted and no money moves.</p>
+
+<script>
+  // A supplier's own words reach this card, so text is placed with textContent and never as markup.
+  function cell(row, text, cls) {
+    var td = row.insertCell();
+    td.textContent = text;
+    if (cls) td.className = cls;
+  }
+
+  function finding(lines) {
+    if (!lines.length) return "Nothing to order yet.";
+    return lines.length === 1 ? "1 item, not sent yet" : lines.length + " items, not sent yet";
+  }
+
+  function render(data) {
+    document.getElementById("supplier").textContent = data.supplier || "";
+
+    var lines = data.lines || [];
+    document.getElementById("finding").textContent = finding(lines);
+
+    var body = document.getElementById("lines");
+    body.replaceChildren();
+    lines.forEach(function (line) {
+      var row = body.insertRow();
+      cell(row, line.item);
+      cell(row, "have " + line.in_stock, "mid");
+      cell(row, line.quantity, "fig");
+    });
+    document.getElementById("lines-empty").hidden = lines.length > 0;
+
+    document.getElementById("gate").hidden = !data.needs_confirmation;
+  }
+</script>
+<!--BRIDGE-->
+</body>
+</html>

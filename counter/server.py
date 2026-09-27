@@ -34,7 +34,9 @@ from mcp.server.transport_security import TransportSecuritySettings
 from mcp_types.version import HANDSHAKE_PROTOCOL_VERSIONS
 
 from counter.config import settings
+from counter.jobs import briefing
 from counter.tools import credit, orders, sales, stock, summary
+from counter.ui import cards
 
 LOCAL_HOSTS = ["127.0.0.1:*", "localhost:*", "[::1]:*"]
 LOCAL_ORIGINS = ["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"]
@@ -99,18 +101,29 @@ class HandshakeOnly:
 
 
 def build_mcp() -> MCPServer:
-    """The MCP server with every tool registered on it."""
+    """The MCP server with every tool registered on it.
+
+    The order below is not a style choice. `MCPServer` consumes an extension inside its constructor,
+    reading `Apps.tools()` exactly once, so a tool bound to a card is invisible unless it was
+    registered before the server existed. Hence two groups: the carded tools go onto the extension
+    first, everything else onto the server afterwards. The split also says, in one glance, which
+    three tools render a card.
+    """
+    apps = cards.build()
+    orders.register_draft(apps)
+    summary.register(apps)
+
     mcp = MCPServer(
         name="counter",
         title="Counter",
         version="0.1.0",
         instructions=INSTRUCTIONS,
+        extensions=[apps],
     )
     credit.register(mcp)
-    orders.register(mcp)
+    orders.register_confirm(mcp)
     sales.register(mcp)
     stock.register(mcp)
-    summary.register(mcp)
     return mcp
 
 
@@ -131,9 +144,18 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        """Run the MCP session manager. Without this the endpoint accepts nothing."""
+        """Run the MCP session manager, and the briefing job if it is switched on.
+
+        Without the session manager the endpoint accepts nothing. The briefing starts after it and
+        is cancelled before it, so a scheduled briefing never runs against a half-built server.
+        """
         async with mcp.session_manager.run():
-            yield
+            task = briefing.start()
+            try:
+                yield
+            finally:
+                if task:
+                    task.cancel()
 
     app = FastAPI(title="Counter", lifespan=lifespan)
 
